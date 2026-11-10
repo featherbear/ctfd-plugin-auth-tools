@@ -1,0 +1,30 @@
+# Dex: standalone OpenID Connect provider with a built-in user list.
+# All passwords below are "password".
+issuer: https://dex.localhost:8443
+
+storage:
+  type: memory
+
+web:
+  http: 0.0.0.0:5556
+
+oauth2:
+  skipApprovalScreen: true
+
+staticClients:
+  - id: ctfd
+    name: CTFd
+    secret: ctfd-dev-secret
+    redirectURIs:
+      - https://ctfd.localhost:8443/auth_tools/oidc/callback
+
+enablePasswordDB: true
+staticPasswords:
+  - email: carol@example.com
+    username: carol
+    userID: 6f1e8a52-3c1d-4f0e-9a7b-1c2d3e4f5a01
+    hash: "$2a$14$JkKDfxNBf8dD6TzQDYO9f.D2YgjtE3ds6aRca8kXrGl4GKifLQb5i"
+  - email: dave@example.com
+    username: dave
+    userID: 6f1e8a52-3c1d-4f0e-9a7b-1c2d3e4f5a02
+    hash: "$2a$14$JkKDfxNBf8dD6TzQDYO9f.D2YgjtE3ds6aRca8kXrGl4GKifLQb5i"

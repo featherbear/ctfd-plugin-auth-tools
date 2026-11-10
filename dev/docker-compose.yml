@@ -1,0 +1,94 @@
+# Local test stack for the auth_tools plugin. See README.md, "Dev stack".
+#
+#   https://ctfd.localhost:8443       CTFd: password + OIDC (Dex) login
+#   https://mtls.ctfd.localhost:8443  CTFd behind mTLS: client cert -> X-Auth-ID
+#   https://dex.localhost:8443        Dex OIDC provider
+#
+# Only one login method is active at a time. Default is OIDC; to test mTLS:
+#   AUTH_TOOLS_MODE=header docker compose up -d
+name: ctfd-auth-tools
+
+x-ctfd-env: &ctfd-env
+  SECRET_KEY: dev-only-secret-key-change-me
+  REVERSE_PROXY: "true"
+  DATABASE_URL: sqlite:////var/uploads/ctfd.db
+  # CTFd talks to Dex over HTTPS via Caddy, so it must trust the dev CA.
+  REQUESTS_CA_BUNDLE: /certs/ca.crt
+
+  # off | header | oidc
+  AUTH_TOOLS_MODE: ${AUTH_TOOLS_MODE:-oidc}
+
+  # Header auth: only Caddy's fixed address may send X-Auth-ID.
+  AUTH_TOOLS_HEADER_TRUSTED_PROXIES: 172.30.0.10/32
+  AUTH_TOOLS_HEADER_SUBJECT_REGEX: "(?:^|,)CN=(?P<id>[^,]+)"
+  AUTH_TOOLS_HEADER_EMAIL_HEADER: X-Auth-Email
+
+  # OIDC against Dex.
+  AUTH_TOOLS_OIDC_ISSUER: https://dex.localhost:8443
+  AUTH_TOOLS_OIDC_CLIENT_ID: ctfd
+  AUTH_TOOLS_OIDC_CLIENT_SECRET: ctfd-dev-secret
+  AUTH_TOOLS_OIDC_REDIRECT_URI: https://ctfd.localhost:8443/auth_tools/oidc/callback
+  AUTH_TOOLS_OIDC_BUTTON_TEXT: Log in with Dex
+
+services:
+  caddy:
+    image: caddy:2.11.9
+    ports:
+      - "8443:8443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./certs:/certs:ro
+    networks:
+      ctfd:
+        ipv4_address: 172.30.0.10
+        # Containers resolve the public hostnames to Caddy too, so CTFd can
+        # reach Dex at the same issuer URL the browser uses.
+        aliases:
+          - ctfd.localhost
+          - mtls.ctfd.localhost
+          - dex.localhost
+    depends_on:
+      - ctfd
+      - dex
+
+  ctfd:
+    image: ctfd/ctfd:3.8.9
+    environment: *ctfd-env
+    volumes:
+      - ../auth_tools:/opt/CTFd/CTFd/plugins/auth_tools:ro
+      - ./certs/ca.crt:/certs/ca.crt:ro
+      - ctfd-data:/var/uploads
+    networks: [ctfd]
+    # Not published to the host: only reachable through Caddy.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthcheck')"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  ctfd-setup:
+    image: ctfd/ctfd:3.8.9
+    entrypoint: ["python", "/bootstrap.py"]
+    volumes:
+      - ./bootstrap.py:/bootstrap.py:ro
+    networks: [ctfd]
+    depends_on:
+      ctfd:
+        condition: service_healthy
+    restart: "no"
+
+  dex:
+    image: ghcr.io/dexidp/dex:v2.46.1
+    command: ["dex", "serve", "/etc/dex/config.yaml"]
+    volumes:
+      - ./dex.yaml:/etc/dex/config.yaml:ro
+    networks: [ctfd]
+
+volumes:
+  ctfd-data:
+
+networks:
+  ctfd:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24

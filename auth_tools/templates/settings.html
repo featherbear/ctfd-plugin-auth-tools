@@ -1,0 +1,77 @@
+{% extends "admin/base.html" %}
+
+{% macro value_text(v) %}{% if v == "" %}(blank){% else %}{{ v }}{% endif %}{% endmacro %}
+
+{% block content %}
+<div class="jumbotron">
+  <div class="container">
+    <h1>Auth Tools</h1>
+  </div>
+</div>
+<div class="container">
+  {% if saved %}
+  <div class="alert alert-success">Settings saved.</div>
+  {% endif %}
+  <p class="text-muted">
+    Settings marked <span class="badge badge-secondary">env</span> are set by environment
+    variables and can't be changed here. OIDC redirect URI to register with your provider:
+    <code>{{ callback_url }}</code>
+  </p>
+  <form method="POST">
+    <input type="hidden" name="nonce" value="{{ Session.nonce }}">
+    {% for title, rows in groups %}
+    <h3 class="mt-4">{{ title }}</h3>
+    {% for row in rows %}
+    <div class="form-group mb-4">
+      {% if row.kind == "bool" %}
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="{{ row.key }}" name="{{ row.key }}"
+               aria-describedby="{{ row.key }}-help"
+               {% if row.value %}checked{% endif %} {% if row.locked %}disabled{% endif %}>
+        <label class="form-check-label" for="{{ row.key }}"><code>{{ row.key }}</code></label>
+        {% if row.locked %}<span class="badge badge-secondary">env</span>{% endif %}
+      </div>
+      {% else %}
+      <label for="{{ row.key }}"><code>{{ row.key }}</code>
+        {% if row.locked %}<span class="badge badge-secondary">env</span>{% endif %}
+      </label>
+      {% if row.kind == "choice" %}
+      <select class="form-control custom-select" id="{{ row.key }}" name="{{ row.key }}"
+              aria-describedby="{{ row.key }}-help" {% if row.locked %}disabled{% endif %}>
+        {% for value, label in row.choices %}
+        <option value="{{ value }}" {% if value == row.value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      {% elif row.kind == "secret" %}
+      <input class="form-control" type="password" id="{{ row.key }}" name="{{ row.key }}"
+             aria-describedby="{{ row.key }}-help" autocomplete="off"
+             placeholder="{{ 'set, leave blank to keep' if row.is_set else 'not set' }}"
+             {% if row.locked %}disabled{% endif %}>
+      {% if row.is_set and not row.locked %}
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="{{ row.key }}__clear" name="{{ row.key }}__clear">
+        <label class="form-check-label" for="{{ row.key }}__clear">Clear</label>
+      </div>
+      {% endif %}
+      {% else %}
+      <input class="form-control" type="text" id="{{ row.key }}" name="{{ row.key }}"
+             aria-describedby="{{ row.key }}-help"
+             value="{{ row.value }}" placeholder="{{ row.default }}" {% if row.locked %}disabled{% endif %}>
+      {% endif %}
+      {% endif %}
+      <small id="{{ row.key }}-help" class="form-text text-muted">
+        {{ row.description }}
+        {% if row.kind == "choice" %}
+        <br>Valid values:
+        {% for value, label in row.choices %}<code>{{ value_text(value) }}</code>{% if not loop.last %}, {% endif %}{% endfor %}.
+        {% endif %}
+        <br>Default: <code>{% if row.kind == "bool" %}{{ "true" if row.default else "false" }}{% else %}{{ value_text(row.default) }}{% endif %}</code>
+        &middot; Env: <code>{{ row.env }}</code>
+      </small>
+    </div>
+    {% endfor %}
+    {% endfor %}
+    <button type="submit" class="btn btn-primary mb-5">Save</button>
+  </form>
+</div>
+{% endblock %}

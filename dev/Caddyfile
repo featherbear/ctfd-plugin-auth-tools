@@ -1,0 +1,42 @@
+{
+	https_port 8443
+	auto_https disable_redirects
+}
+
+# Normal site: password and OIDC login. Strip any identity headers a client
+# tries to send, so they can't impersonate someone.
+ctfd.localhost {
+	tls /certs/server.crt /certs/server.key
+	reverse_proxy ctfd:8000 {
+		header_up -X-Auth-ID
+		header_up -X-Auth-Email
+		# Underscore variants become the same WSGI variable (HTTP_X_AUTH_ID).
+		# Gunicorn >= 22 drops them already; this is defense in depth.
+		header_up -X_Auth_ID
+		header_up -X_Auth_Email
+	}
+}
+
+# mTLS site: a client cert signed by the dev CA is required. Caddy passes the
+# verified subject DN (e.g. "CN=alice,OU=Players,O=CTFd Dev") and the cert's
+# email SAN to CTFd. header_up replaces any value the client sent.
+mtls.ctfd.localhost {
+	tls /certs/server.crt /certs/server.key {
+		client_auth {
+			mode require_and_verify
+			trust_pool file /certs/ca.crt
+		}
+	}
+	reverse_proxy ctfd:8000 {
+		header_up -X_Auth_ID
+		header_up -X_Auth_Email
+		header_up X-Auth-ID {http.request.tls.client.subject}
+		header_up X-Auth-Email {http.request.tls.client.san.emails.0}
+	}
+}
+
+# Dex, the OpenID Connect provider.
+dex.localhost {
+	tls /certs/server.crt /certs/server.key
+	reverse_proxy dex:5556
+}
