@@ -46,7 +46,7 @@ SETTINGS = {
     "header_email_header": _s(
         "", "str",
         "Optional header with the user's email address. Only used when an account is "
-        "created or linked. Leave blank to create accounts without an email.",
+        "created. Leave blank to create accounts without an email.",
     ),
     "header_trusted_proxies": _s(
         "127.0.0.1/32,::1/128", "str",
@@ -63,16 +63,6 @@ SETTINGS = {
         True, "bool",
         "Create a CTFd account automatically the first time an unknown ID arrives. "
         "When off, unknown IDs are refused with a 403.",
-    ),
-    "header_link_by": _s(
-        "", "choice",
-        "The first time an ID arrives, link it to an existing account instead of "
-        "creating one. Never links admin accounts.",
-        [
-            ("", "Don't link: always create a new account"),
-            ("name", "Account whose name equals the ID"),
-            ("email", "Account whose email matches the email header"),
-        ],
     ),
     "header_allow_registration": _s(
         False, "bool",
@@ -137,11 +127,6 @@ SETTINGS = {
         True, "bool",
         "Create a CTFd account the first time an unknown user signs in. When off, "
         "they're refused.",
-    ),
-    "oidc_link_by_verified_email": _s(
-        False, "bool",
-        "Link a first-time user to an existing account with the same email, only if "
-        "the provider marks the email as verified. Never links admin accounts.",
     ),
     "oidc_allow_http": _s(
         False, "bool", "Allow plain-http provider URLs. Only for local testing."

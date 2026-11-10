@@ -1,4 +1,10 @@
-"""Find, link or create the CTFd user for an external identity."""
+"""
+Find or create the CTFd user for an external identity.
+
+An identity is never attached to an account that already exists: users can
+change their CTFd name and email, so a match on either doesn't prove it's the
+same person. Every external identity gets its own account.
+"""
 
 import hashlib
 
@@ -49,26 +55,6 @@ def _unique_name(base):
     return candidate
 
 
-def _find_link_target(provider, link_by, name, email):
-    if link_by == "email" and email:
-        user = Users.query.filter_by(email=email).first()
-    elif link_by == "name" and name:
-        matches = Users.query.filter_by(name=name).limit(2).all()
-        user = matches[0] if len(matches) == 1 else None
-    else:
-        return None
-
-    if user is None:
-        return None
-    # Never hand an admin account to an external identity automatically.
-    if user.type == "admin":
-        return None
-    # Don't attach a second identity from the same provider to an account.
-    if AuthIdentity.query.filter_by(provider=provider, user_id=user.id).first():
-        return None
-    return user
-
-
 def _under_user_limit():
     limit = int(get_config("num_users", default=0) or 0)
     if not limit:
@@ -76,10 +62,10 @@ def _under_user_limit():
     return Users.query.filter_by(banned=False, hidden=False).count() < limit
 
 
-def resolve_user(provider, subject, name=None, email=None, auto_create=True, link_by=""):
+def resolve_user(provider, subject, name=None, email=None, auto_create=True):
     """
-    Return the Users row for (provider, subject), linking or creating one if
-    needed. Raises ProvisioningError if no account can be used.
+    Return the Users row for (provider, subject), creating one if needed.
+    Raises ProvisioningError if no account can be used.
     """
     subject = normalize_subject(subject)
     if not subject:
@@ -90,23 +76,18 @@ def resolve_user(provider, subject, name=None, email=None, auto_create=True, lin
         return user
 
     email = (email or "").strip()[:EMAIL_MAX] or None
-    # With no display name supplied, the identity itself is the name, both for
-    # linking by name and for naming a new account.
+    # With no display name supplied, the identity itself is the name.
     name = (name or "").strip() or subject
 
-    user = _find_link_target(provider, link_by, name, email)
-    created = False
-    if user is None:
-        if not auto_create:
-            raise ProvisioningError("No CTFd account is linked to this identity.")
-        if not _under_user_limit():
-            raise ProvisioningError("This CTF has reached its maximum number of users.")
-        if email and Users.query.filter_by(email=email).first() is not None:
-            # Email is unique in CTFd; don't steal it from an unlinked account.
-            email = None
-        user = Users(name=_unique_name(name), email=email, verified=True)
-        db.session.add(user)
-        created = True
+    if not auto_create:
+        raise ProvisioningError("No CTFd account is linked to this identity.")
+    if not _under_user_limit():
+        raise ProvisioningError("This CTF has reached its maximum number of users.")
+    if email and Users.query.filter_by(email=email).first() is not None:
+        # Email is unique in CTFd, and it belongs to another account.
+        email = None
+    user = Users(name=_unique_name(name), email=email, verified=True)
+    db.session.add(user)
 
     try:
         db.session.flush()
@@ -122,9 +103,8 @@ def resolve_user(provider, subject, name=None, email=None, auto_create=True, lin
         return user
 
     log(
-        "registrations" if created else "logins",
-        "[{date}] {ip} - auth_tools {action} user {name} for {provider} identity {subject}",
-        action="created" if created else "linked",
+        "registrations",
+        "[{date}] {ip} - auth_tools created user {name} for {provider} identity {subject}",
         name=user.name,
         provider=provider,
         subject=subject,

@@ -268,11 +268,10 @@ def callback():
             doc["issuer"].rstrip("/"),
             str(claims["sub"]),
             name=str(name),
-            # Only trust addresses the IdP has verified: CTFd uses the email
-            # for password resets.
+            # Only store addresses the IdP has verified. The email is never
+            # used to find an existing account (see provisioning.py).
             email=email if email_verified else None,
             auto_create=config.get("oidc_auto_create"),
-            link_by="email" if config.get("oidc_link_by_verified_email") else "",
         )
     except ProvisioningError as e:
         return _fail(str(e))

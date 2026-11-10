@@ -1,18 +1,25 @@
 /*
- * auth_tools login page enhancements (served by /plugins/auth_tools/login.js).
+ * auth_tools page enhancements (served by /plugins/auth_tools/site.js on every
+ * page of the player-facing theme).
  *
- * In OIDC mode:
- *   - login page: the SSO button comes first, followed by an "or" divider and
- *     a toggle that reveals CTFd's username/password form.
- *   - register page: the SSO button is shown above the registration form.
+ * Login and register pages, in OIDC mode:
+ *   - login: the SSO button comes first, followed by an "or" divider and a
+ *     toggle that reveals CTFd's username/password form.
+ *   - register: the SSO button is shown above the registration form.
  *
- * Theme-agnostic: it looks for the form containing a password field, and waits
- * for it if the theme renders client-side (e.g. Svelte/React themes). It never
- * moves the theme's form; it only inserts siblings and hides the form with a
- * class, so framework-managed DOM stays intact.
+ * Settings page, for accounts linked to a proxy or OIDC identity:
+ *   - the password and current-password fields are hidden and disabled,
+ *     because these accounts can't have a password.
+ *   - the email field is read-only, with a note, because it can't be changed.
+ *
+ * Theme-agnostic: it finds forms by their field names, and waits for them if
+ * the theme renders client-side (e.g. Svelte/React themes). It never moves the
+ * theme's elements; it only inserts siblings and hides elements with a class,
+ * so framework-managed DOM stays intact.
  *
  * Styling hooks for themes: #auth-tools-sso, #auth-tools-divider,
- * #auth-tools-password-toggle, and .auth-tools-open on the toggle.
+ * #auth-tools-password-toggle, .auth-tools-open on the toggle, and
+ * .auth-tools-note on the settings page note.
  *
  * The server replaces the placeholder below with the current settings.
  */
@@ -21,13 +28,17 @@
   var EXPAND_KEY = "auth_tools_password_open";
   var HIDDEN_CLASS = "auth-tools-hidden";
 
-  if (!config.enabled) return;
-  var isLogin = location.pathname === config.loginPath;
-  var isRegister = location.pathname === config.registerPath;
-  if (!isLogin && !isRegister) return;
+  var path = location.pathname;
+  var isLogin = config.enabled && path === config.loginPath;
+  var isRegister = config.enabled && path === config.registerPath;
+  var isSettings = config.linked && path === config.settingsPath;
+  if (!isLogin && !isRegister && !isSettings) return;
 
   var CSS = [
     "." + HIDDEN_CLASS + "{display:none!important}",
+    // Look non-editable: Bootstrap's own "disabled" background where available.
+    "form[data-auth-tools=locked] input[readonly]{cursor:default;",
+    "  background-color:var(--bs-secondary-bg,#e9ecef)}",
     "#auth-tools-sso{display:block;width:100%;margin-bottom:0;text-align:center}",
     "#auth-tools-divider{display:flex;align-items:center;gap:.75em;margin:1em 0;",
     "  font-size:.85em;text-transform:lowercase;opacity:.65}",
@@ -149,20 +160,90 @@
     setOpen(Boolean(reopen) || location.hash === "#password", false);
   }
 
+  // --- Settings page -------------------------------------------------------
+
+  // The element that wraps one field (label + input), found by walking up
+  // from the input while the ancestor contains no other form control.
+  function fieldWrapper(input) {
+    var el = input;
+    while (
+      el.parentElement &&
+      el.parentElement !== input.form &&
+      el.parentElement.querySelectorAll("input:not([type=hidden]),select,textarea").length === 1
+    ) {
+      el = el.parentElement;
+    }
+    return el;
+  }
+
+  // Hiding fields can leave two <hr> separators next to each other.
+  function collapseRules(form) {
+    var previousVisible = null;
+    Array.prototype.forEach.call(form.children, function (el) {
+      if (el.classList.contains(HIDDEN_CLASS) || el.offsetParent === null) return;
+      if (el.tagName === "HR" && previousVisible && previousVisible.tagName === "HR") {
+        el.classList.add(HIDDEN_CLASS);
+        return;
+      }
+      previousVisible = el;
+    });
+  }
+
+  function lockSettings(form) {
+    if (form.getAttribute("data-auth-tools") === "locked") return;
+    form.setAttribute("data-auth-tools", "locked");
+    addStyles();
+
+    ["password", "confirm"].forEach(function (name) {
+      var input = form.querySelector("input[name=" + name + "]");
+      if (!input) return;
+      input.disabled = true; // never submitted
+      fieldWrapper(input).classList.add(HIDDEN_CLASS);
+    });
+
+    var email = form.querySelector("input[name=email]");
+    if (email) {
+      email.readOnly = true;
+      // CTFd's core theme renders a missing email as the text "None".
+      if (!config.hasEmail && (email.value === "None" || email.value === "")) {
+        email.value = "";
+        email.placeholder = config.noEmailText;
+      }
+      var note = document.createElement("small");
+      note.className = "form-text text-muted auth-tools-note";
+      note.id = "auth-tools-email-note";
+      note.textContent = config.emailNote;
+      email.setAttribute("aria-describedby", note.id);
+      email.insertAdjacentElement("afterend", note);
+    }
+
+    collapseRules(form);
+  }
+
+  // --- Startup ---------------------------------------------------------------
+
   function findForm() {
-    var password = document.querySelector("form input[name=password]");
-    return password && password.form;
+    // The settings form is the one with a "current password" (confirm) field.
+    var input = document.querySelector(
+      isSettings ? "form input[name=confirm]" : "form input[name=password]"
+    );
+    return input && input.form;
+  }
+
+  function enhanceForm(form) {
+    if (isSettings) lockSettings(form);
+    else enhance(form);
   }
 
   function start() {
     var form = findForm();
-    if (form) return enhance(form);
+    if (form) return enhanceForm(form);
     // Client-rendered themes may add the form after this script runs.
     var observer = new MutationObserver(function () {
       var f = findForm();
       if (f) {
         observer.disconnect();
-        enhance(f);
+        enhanceForm(f);
       }
     });
     observer.observe(document.body, { childList: true, subtree: true });

@@ -134,7 +134,6 @@ def header_auth_hook():
             subject,
             email=request.headers.get(email_header) if email_header else None,
             auto_create=config.get("header_auto_create"),
-            link_by=config.get("header_link_by"),
         )
     except ProvisioningError as e:
         _drop_header_session()
