@@ -2,7 +2,7 @@
 
 - [How settings work](#how-settings-work)
 - [Choosing a mode](#choosing-a-mode)
-- [Header mode (reverse proxy / mTLS)](#header-mode-reverse-proxy--mtls)
+- [Header mode (reverse proxy)](#header-mode-reverse-proxy)
 - [OIDC mode (OpenID Connect)](#oidc-mode-openid-connect)
 - [Limitations](#limitations)
 
@@ -39,11 +39,18 @@ In both modes, accounts linked to an external identity can't use password login.
 created through CTFd itself, such as the setup admin, keep it. See
 [Linked accounts and passwords](accounts.md#linked-accounts-and-passwords).
 
-## Header mode (reverse proxy / mTLS)
+## Header mode (reverse proxy)
 
-A reverse proxy authenticates the client, for example by verifying a client certificate, and
-passes the identity to CTFd in a header. The plugin logs the request in as the matching CTFd
-user, and creates the account the first time it sees that identity.
+A reverse proxy in front of CTFd authenticates the user and passes their identity to CTFd in a
+header. The plugin logs the request in as the matching CTFd user, and creates the account the
+first time it sees that identity.
+
+The plugin doesn't care how the proxy authenticates users. For example, it can:
+- verify client certificates (mTLS);
+- use an SSO gateway such as Authelia, Authentik or oauth2-proxy;
+- use an access proxy such as Cloudflare Access or Tailscale.
+
+What matters is that the proxy is the only way to reach CTFd, and that it controls the header.
 
 ### Settings
 
@@ -73,8 +80,8 @@ user, and creates the account the first time it sees that identity.
 - **Untrusted senders are ignored.** A header from an address outside
   `header_trusted_proxies` is ignored, and the plugin logs a warning.
 - **Registration is closed.** `/register` returns 403 by default, so the proxy is the only way
-  accounts get created. This stops someone registering `alice` before the real alice
-  connects with her certificate. Admin accounts still come from CTFd's setup wizard or the
+  accounts get created. This stops someone registering `alice` before the real alice first
+  signs in. Admin accounts still come from CTFd's setup wizard or the
   admin panel. To also hide the "Register" link, set CTFd's **Registration Visibility** to
   Private.
 - **No Log out link.** Logging out of a header session would only log the user straight back
@@ -89,7 +96,9 @@ Your proxy must **set** the identity header on every request it forwards to CTFd
 any copy the client sent. On routes that don't authenticate the client, it must **remove**
 the header.
 
-Caddy (this is what the [dev stack](contributing.md#dev-stack) uses):
+#### Example: client certificates (mTLS) with Caddy
+
+This is what the [dev stack](contributing.md#dev-stack) uses.
 
 ```caddy
 # Site with client certificates
@@ -117,7 +126,7 @@ ctf.example.com {
 }
 ```
 
-nginx:
+#### Example: client certificates (mTLS) with nginx
 
 ```nginx
 ssl_client_certificate /etc/nginx/ca.pem;
@@ -132,7 +141,7 @@ location / {
 }
 ```
 
-Then configure CTFd:
+CTFd settings for either mTLS example:
 
 ```sh
 AUTH_TOOLS_MODE=header
@@ -140,6 +149,42 @@ AUTH_TOOLS_HEADER_TRUSTED_PROXIES=172.18.0.10/32            # your proxy's addre
 AUTH_TOOLS_HEADER_SUBJECT_REGEX='(?:^|,)CN=(?P<id>[^,]+)'   # use the certificate CN as the ID
 AUTH_TOOLS_HEADER_EMAIL_HEADER=X-Auth-Email                 # optional
 ```
+
+#### Example: SSO gateway (Authelia) with Caddy
+
+Caddy's `forward_auth` asks Authelia whether the user is signed in, then copies Authelia's
+`Remote-User` and `Remote-Email` headers onto the request.
+
+```caddy
+ctf.example.com {
+	# A route runs its directives in the order written. Strip any copies the
+	# client sent *before* forward_auth sets the real values. Outside a route,
+	# Caddy would run request_header after forward_auth and strip those too.
+	route {
+		request_header -Remote-User
+		request_header -Remote_User
+		request_header -Remote-Email
+		request_header -Remote_Email
+		forward_auth authelia:9091 {
+			uri /api/authz/forward-auth
+			copy_headers Remote-User Remote-Email
+		}
+		reverse_proxy ctfd:8000
+	}
+}
+```
+
+CTFd settings:
+
+```sh
+AUTH_TOOLS_MODE=header
+AUTH_TOOLS_HEADER_NAME=Remote-User                  # Authelia's username, used as the ID
+AUTH_TOOLS_HEADER_EMAIL_HEADER=Remote-Email         # optional
+AUTH_TOOLS_HEADER_TRUSTED_PROXIES=172.18.0.10/32    # Caddy's address
+```
+
+The same pattern works for other gateways. Use whichever header carries a stable,
+unique username, and don't use a display name.
 
 ### Security checklist
 
@@ -250,5 +295,5 @@ The plugin can't change a theme's own wording. For example, Challenge Express st
   The plugin doesn't map provider groups to teams.
 - **Registration visibility.** CTFd's "Registration Visibility" setting doesn't control
   auto-creation. The `*_auto_create` settings do.
-- **Admin sign-in.** There's no way to deliberately link an admin account to a certificate or
-  OIDC identity, so admins sign in with a password.
+- **Admin sign-in.** There's no way to deliberately link an admin account to a proxy or OIDC
+  identity, so admins sign in with a password.

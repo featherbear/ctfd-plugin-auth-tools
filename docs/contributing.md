@@ -90,8 +90,12 @@ curl --cacert ca.crt --cert alice.crt --key alice.key https://mtls.ctfd.localhos
 
 ## Tests
 
-The tests use CTFd's own test helpers inside the official image, so you don't need a local
-CTFd checkout:
+All tests are in `tests/test_auth_tools.py`. They run inside the official CTFd image using
+CTFd's own test helpers, so you don't need a local CTFd checkout or Python environment.
+
+### Running them
+
+From the repository root:
 
 ```sh
 docker run --rm --user root --entrypoint sh \
@@ -101,18 +105,95 @@ docker run --rm --user root --entrypoint sh \
   -c 'pip install -q pytest && python -m pytest -q tests/test_auth_tools_plugin.py'
 ```
 
-By default they use an in-memory SQLite database. To run them against MySQL or MariaDB, which
-also exercises the Alembic migration, add `-e TESTING_DATABASE_URL=mysql+pymysql://...`.
+This uses an in-memory SQLite database and takes about 20 seconds.
 
-Notes for writing tests:
+To run only some tests, add pytest's `-k` option. For example, replace the last line with:
 
-- **Proxy address.** Header-mode requests need `environ_base={"REMOTE_ADDR": "127.0.0.1"}`
-  to come from a trusted proxy. Use the `PROXY` constant.
-- **Settings.** Set them with `monkeypatch.setenv("AUTH_TOOLS_...")`. The `header_env` and
-  `idp` fixtures switch modes.
-- **OIDC.** The `idp` fixture is a fake provider. Set `idp.claims` to change the ID token.
+```sh
+  -c 'pip install -q pytest && python -m pytest -q tests/test_auth_tools_plugin.py -k "oidc and email"'
+```
+
+### Running them against MariaDB
+
+On SQLite the plugin creates its table directly. On MySQL and MariaDB it runs its Alembic
+migration, and string comparisons behave differently (see the case-sensitivity test). Run
+the suite against MariaDB before merging changes to the model, the migration or anything
+that queries the database. It takes about 45 seconds:
+
+```sh
+docker network create auth-tools-test
+docker run -d --rm --name auth-tools-test-db --network auth-tools-test \
+  -e MARIADB_ROOT_PASSWORD=pw mariadb:10.11
+until docker exec auth-tools-test-db healthcheck.sh --connect --innodb_initialized; do sleep 2; done
+
+docker run --rm --user root --entrypoint sh --network auth-tools-test \
+  -e TESTING_DATABASE_URL=mysql+pymysql://root:pw@auth-tools-test-db/ctfd \
+  -v "$PWD/auth_tools:/opt/CTFd/CTFd/plugins/auth_tools:ro" \
+  -v "$PWD/tests/test_auth_tools.py:/opt/CTFd/tests/test_auth_tools_plugin.py:ro" \
+  -w /opt/CTFd ctfd/ctfd:3.8.9 \
+  -c 'pip install -q pytest && python -m pytest -q tests/test_auth_tools_plugin.py'
+
+# Clean up, even if the tests failed
+docker rm -f auth-tools-test-db
+docker network rm auth-tools-test
+```
+
+Each test creates its own database with a random name, so runs don't interfere with each
+other.
+
+### Writing tests
+
+Every test gets a fresh CTFd from the `app` fixture, already set up, with an admin account
+`admin` / `password`. All `AUTH_TOOLS_*` environment variables are cleared first, so the
+plugin starts in `off` mode.
+
+Fixtures:
+
+| Fixture | Gives you |
+|---|---|
+| `app` | A fresh CTFd with the plugin loaded. |
+| `header_env` | Switches to `header` mode. |
+| `idp` | Switches to `oidc` mode with a fake identity provider. Set `idp.claims` to change what the ID token contains, for example `{"sub": "u1", "email": "a@example.com", "email_verified": True}`. |
+| `linked` | Two header users (alice, bob), one OIDC user (frank) and one normal user (plain). Used by the admin API tests. |
+| `mail` | Makes CTFd think it can send email, and records password-reset emails in a list instead of sending them. |
+
+Helpers and constants:
+
+| Name | Use |
+|---|---|
+| `PROXY` / `OUTSIDE` | `environ_base` values for a request from a trusted proxy (127.0.0.1) or from an untrusted address. |
+| `ALICE` | Keyword arguments for a header-mode request as alice from the trusted proxy: `c.get("/", **ALICE)`. |
+| `run_flow(c, idp)` | Runs the full OIDC login with client `c`. Returns the callback response. |
+| `_oidc_user(app, idp)` | Creates an OIDC user and returns their user ID. |
+| `_password_login(app, name, password)` | Tries CTFd's password login. Returns the response and the logged-in user ID, or `None`. |
+| `_set_password_via_api(c, password)` | Tries to set a password from the user's own Settings, through the API. |
+| `identities(app)` | All rows of the identity table, as `(provider, subject, user_id)`. |
+
+Things that commonly trip people up:
+
+- **Settings.** Set them with `monkeypatch.setenv("AUTH_TOOLS_...")`. They're read on every
+  request, so you can change them partway through a test.
+- **Header mode needs the proxy address and the header on every request.** A request
+  without the header is treated as the header disappearing, which logs out a header session
+  (`header_logout_on_missing`). Pass `**ALICE`, or `headers=` plus `environ_base=PROXY`, each
+  time.
+- **CTFd's own checks run before the plugin's header login.** On the very first request, the
+  user isn't logged in yet when CTFd's hooks run. Behavior that depends on CTFd seeing a
+  logged-in user, such as the forced password-change redirect, only shows up from the second
+  request on.
 - **CSRF.** CTFd's test client adds the `CSRF-Token` header to JSON requests itself. Don't
-  add your own, or the request will be rejected.
+  add your own: the request would carry two tokens and be rejected with a 403. Form posts
+  need the session's `nonce` in the form data, as `_post_form` and `_password_login` show.
+- **Hidden users don't appear in CTFd's user list API.** The setup admin is hidden, so look
+  users up through the database (`Users.query`) rather than `/api/v1/users`.
+- **Prove the test can fail.** For security behavior, temporarily remove your fix and check
+  that the new test goes red.
+
+### Browser checks
+
+The test suite doesn't run a browser. Changes to the login page, Settings page or admin
+pages (`assets/*.js`) also need checking by hand on the [dev stack](#dev-stack). See
+[Making changes](#making-changes) for which themes and modes to cover.
 
 ## Making changes
 

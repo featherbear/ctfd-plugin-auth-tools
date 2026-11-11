@@ -1,4 +1,4 @@
-"""Tests for the auth_tools plugin. See README.md ("Tests") for how to run them."""
+"""Tests for the auth_tools plugin. See docs/contributing.md ("Tests") for how to run them."""
 
 import base64
 import json

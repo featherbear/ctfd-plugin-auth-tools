@@ -2,10 +2,11 @@
 
 A CTFd plugin that adds two ways to log in. Only one can be active at a time:
 
-- **Reverse-proxy header (mTLS).** A trusted proxy verifies the client, for example with a
-  client certificate, and passes the identity to CTFd in a header (`X-Auth-ID` by default).
-  Users are logged in automatically, and their account is created the first time they
-  connect.
+- **Reverse-proxy header.** A trusted reverse proxy authenticates the user and passes their
+  identity to CTFd in a header (`X-Auth-ID` by default). The proxy can use any method, for
+  example client certificates (mTLS) or an SSO gateway such as Authelia or oauth2-proxy.
+  Users are logged in automatically, and their account is created the first time they sign
+  in.
 - **OpenID Connect.** Users log in through an identity provider such as Keycloak, Dex or
   Google. The login page shows the SSO button first, with CTFd's username/password form
   behind a toggle.

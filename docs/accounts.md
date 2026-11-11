@@ -52,8 +52,8 @@ CTFd's password login. It signs in only through its identity, and it can't get a
   not support password sign-on", even if it somehow has a password, for example from before
   it was linked.
 - **No password from Settings.** Setting a password from the Settings page is refused.
-  Without this rule, a user created from their certificate could set a password and then log
-  in without the certificate.
+  Without this rule, a user created by the proxy could set a password and then log in
+  without going through the proxy.
 - **No password resets.** "Forgot your password?" doesn't send a reset email to a linked
   account. The reply is the same as for an unknown address, so it doesn't reveal which emails
   belong to linked accounts. A reset link that was already sent is refused.
@@ -63,8 +63,8 @@ CTFd's password login. It signs in only through its identity, and it can't get a
   would send them to a password reset they aren't allowed to complete. If a linked account
   already has that flag, for example from before the plugin was installed, it's cleared the
   next time CTFd tries to redirect them.
-- **Email locked for users, not admins.** The email comes from the certificate or the
-  identity provider, so users can't change it from Settings. The server refuses a changed
+- **Email locked for users, not admins.** The email comes from the proxy or the identity
+  provider, so users can't change it from Settings. The server refuses a changed
   email with "Your email is externally managed and cannot be changed". Admins can still
   correct it in the Edit User form. The plugin never uses the email to find an account, so
   changing it doesn't affect how the user signs in.
@@ -91,7 +91,7 @@ accounts the plugin treats that as unchanged, so these users can save their prof
 
 ## Seeing how each user signs in
 
-In the admin panel, users who sign in through the reverse proxy (mTLS) or OpenID Connect get
+In the admin panel, users who sign in through the reverse proxy or OpenID Connect get
 an **External** badge next to their name. It appears both in the user list (**Admin →
 Users**) and on the user's own admin page. Normal password accounts have no badge.
 
