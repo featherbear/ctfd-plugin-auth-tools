@@ -33,11 +33,11 @@ SETTINGS = {
         "Which login method is active. Only one can be on at a time.",
         [
             ("off", "Off: CTFd's normal login only"),
-            ("header", "Reverse-proxy header (e.g. mTLS)"),
+            ("header", "Upstream header (e.g. mTLS)"),
             ("oidc", "OpenID Connect"),
         ],
     ),
-    # --- Reverse-proxy header authentication ---
+    # --- Upstream header ---
     "header_name": _s(
         "X-Auth-ID", "str",
         "Request header that carries the user's identity. Your proxy must set it and "
@@ -66,12 +66,12 @@ SETTINGS = {
     ),
     "header_allow_registration": _s(
         False, "bool",
-        "Allow CTFd's own /register page in header mode. When off, accounts only come "
+        "Allow CTFd's own /register page in upstream header mode. When off, accounts only come "
         "from the proxy, so nobody can claim a name before its owner connects.",
     ),
     "header_hide_logout": _s(
         True, "bool",
-        "Hide the Log out link for users signed in by the header, and make /logout do "
+        "Hide the Log out link for users logged in by the header, and make /logout do "
         "nothing for them. Logging out would only log them straight back in, because "
         "the proxy sends the header again on the next request.",
     ),
@@ -112,7 +112,7 @@ SETTINGS = {
         "Log in with SSO", "str", "Label of the SSO button on the login and register pages."
     ),
     "oidc_password_toggle_text": _s(
-        "Sign in with username / email", "str",
+        "Log in with username / email", "str",
         "Label of the toggle that reveals CTFd's username/password form on the login page.",
     ),
     "oidc_divider_text": _s(
@@ -125,7 +125,7 @@ SETTINGS = {
     ),
     "oidc_auto_create": _s(
         True, "bool",
-        "Create a CTFd account the first time an unknown user signs in. When off, "
+        "Create a CTFd account the first time an unknown user logs in. When off, "
         "they're refused.",
     ),
     "oidc_allow_http": _s(

@@ -1,5 +1,5 @@
 """
-Admin-only API for listing accounts linked to an external identity.
+Admin-only API for listing external accounts.
 
     GET /api/v1/auth_tools/identities
         ?via=header|oidc   only reverse-proxy or only OpenID accounts

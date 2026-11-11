@@ -1,12 +1,13 @@
 # Admin API
 
-## List linked accounts
+## List external accounts
 
 ```
 GET /api/v1/auth_tools/identities
 ```
 
-Lists every CTFd account linked to a reverse-proxy or OpenID identity. Normal CTFd accounts,
+Lists every external account: accounts created by upstream header or OpenID Connect login.
+Password-backed accounts,
 such as the setup admin, aren't included.
 
 It's admin-only. Anyone else, including users with their own API token, gets `403`.

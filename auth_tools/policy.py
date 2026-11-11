@@ -1,10 +1,10 @@
 """
 Account rules that keep external identities and CTFd passwords apart.
 
-- Accounts linked to an external identity (header or OIDC) can't log in with a
+- External accounts (upstream header or OIDC) can't log in with a
   password, and can't set one. Otherwise a user provisioned by the proxy could
   set a password in Settings and then log in without going through the proxy.
-- In header mode, self-registration is closed (unless allowed by setting): the
+- In upstream header mode, self-registration is closed (unless allowed by setting): the
   proxy is the only way accounts are created, so nobody can register a name
   ahead of the person whose identity carries it.
 
@@ -33,7 +33,7 @@ LOGIN_BLOCKED = "This account does not support password sign-on"
 PASSWORD_BLOCKED = "Sign-on for this account is managed externally and does not use passwords"
 EMAIL_LOCKED = "Your email is externally managed and cannot be changed"
 RESET_REQUESTED = "If that account exists you will receive an email, please check your inbox"
-REGISTRATION_CLOSED = "Accounts are created automatically when you sign in."
+REGISTRATION_CLOSED = "Accounts are created automatically when you log in."
 
 
 def linked_identity(user):
@@ -61,7 +61,7 @@ def account_policy_hook():
         if identity is not None:
             log(
                 "logins",
-                "[{date}] {ip} - auth_tools refused password login for linked account {name}",
+                "[{date}] {ip} - auth_tools refused password login for external account {name}",
                 name=user.name,
             )
             return render_template(
@@ -91,7 +91,7 @@ def account_policy_hook():
                 data.pop("email")
 
     elif endpoint == "api.users_user_public" and request.method == "PATCH":
-        # Admins editing a user: linked accounts can't be given a password, and
+        # Admins editing a user: external accounts can't be given a password, and
         # can't be forced to change one (that would lock them out: CTFd would
         # send them to a password reset they're not allowed to complete).
         # Admins can still change everything else, including the email.
@@ -106,7 +106,7 @@ def account_policy_hook():
                 return jsonify({"success": False, "errors": {field: [PASSWORD_BLOCKED]}}), 400
 
     elif endpoint == "auth.reset_password":
-        # A linked account flagged "require password change" (e.g. before this
+        # An external account flagged "require password change" (e.g. before this
         # rule existed) would be sent here on every request and could never
         # finish. Clear the flag and let them in.
         current = get_current_user() if authed() else None
@@ -119,9 +119,9 @@ def account_policy_hook():
 
         token = (request.view_args or {}).get("data")
         if token is None:
-            # Requesting a reset link: don't send one to a linked account. Reply
+            # Requesting a reset link: don't send one to an external account. Reply
             # exactly as CTFd does for unknown addresses, so this doesn't reveal
-            # which emails belong to linked accounts.
+            # which emails belong to external accounts.
             if request.method == "POST":
                 user = Users.query.filter_by(
                     email=request.form.get("email", "").strip()

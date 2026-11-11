@@ -1,5 +1,5 @@
 """
-auth_tools: reverse-proxy header authentication and OpenID Connect login for CTFd.
+auth_tools: upstream header and OpenID Connect login for CTFd.
 
 Install by copying this directory to CTFd/plugins/auth_tools.
 """
@@ -35,7 +35,7 @@ ADMIN_JS_PATH = os.path.join(ASSETS, "admin.js")
 
 GROUPS = [
     ("General", ["mode"]),
-    ("Reverse-proxy header", [k for k in config.SETTINGS if k.startswith("header_")]),
+    ("Upstream header", [k for k in config.SETTINGS if k.startswith("header_")]),
     ("OpenID Connect", [k for k in config.SETTINGS if k.startswith("oidc_")]),
 ]
 
@@ -95,7 +95,7 @@ def settings():
 def site_js():
     """
     Login/register page SSO button, and Settings page field locking for
-    linked accounts. Works with any theme; see assets/site.js.
+    external accounts. Works with any theme; see assets/site.js.
     """
     identity = linked_identity(get_current_user()) if authed() else None
     data = {

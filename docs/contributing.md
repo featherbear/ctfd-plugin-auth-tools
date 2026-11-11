@@ -6,14 +6,14 @@
 auth_tools/                 the plugin (copied to CTFd/plugins/auth_tools)
   __init__.py               load(): registers routes, hooks, site.js and session.css
   config.py                 every setting: default, kind, description, valid values
-  header_auth.py            header mode: per-request hook, trusted-proxy check
-  oidc.py                   OIDC mode: login and callback routes
+  header_auth.py            upstream header mode: per-request hook, trusted-proxy check
+  oidc.py                   OpenID Connect (OIDC) mode: login and callback routes
   provisioning.py           find, link or create the user for an identity
   policy.py                 password-login, password-change, /register and /logout rules
   api.py                    admin API: GET /api/v1/auth_tools/identities
   models.py                 auth_tools_identities table
   migrations/               Alembic migrations, used on MySQL/MariaDB
-  assets/site.js            login page SSO button; locks Settings fields for linked accounts
+  assets/site.js            login page SSO button; locks Settings fields for external accounts
   assets/admin.js           "External" badges and Edit User changes on admin user pages
   templates/settings.html   admin settings page
 tests/test_auth_tools.py    pytest suite, run inside the CTFd image
@@ -154,7 +154,7 @@ Fixtures:
 | `app` | A fresh CTFd with the plugin loaded. |
 | `header_env` | Switches to `header` mode. |
 | `idp` | Switches to `oidc` mode with a fake identity provider. Set `idp.claims` to change what the ID token contains, for example `{"sub": "u1", "email": "a@example.com", "email_verified": True}`. |
-| `linked` | Two header users (alice, bob), one OIDC user (frank) and one normal user (plain). Used by the admin API tests. |
+| `linked` | Two upstream header users (alice, bob), one OIDC user (frank) and one password-backed user (plain). Used by the admin API tests. |
 | `mail` | Makes CTFd think it can send email, and records password-reset emails in a list instead of sending them. |
 
 Helpers and constants:
@@ -173,7 +173,7 @@ Things that commonly trip people up:
 
 - **Settings.** Set them with `monkeypatch.setenv("AUTH_TOOLS_...")`. They're read on every
   request, so you can change them partway through a test.
-- **Header mode needs the proxy address and the header on every request.** A request
+- **Upstream header mode needs the proxy address and the header on every request.** A request
   without the header is treated as the header disappearing, which logs out a header session
   (`header_logout_on_missing`). Pass `**ALICE`, or `headers=` plus `environ_base=PROXY`, each
   time.

@@ -7,7 +7,7 @@
  *     toggle that reveals CTFd's username/password form.
  *   - register: the SSO button is shown above the registration form.
  *
- * Settings page, for accounts linked to a proxy or OIDC identity:
+ * Settings page, for external accounts (upstream header or OIDC):
  *   - the password and current-password fields are hidden and disabled,
  *     because these accounts can't have a password.
  *   - the email field is read-only, with a note, because it can't be changed.

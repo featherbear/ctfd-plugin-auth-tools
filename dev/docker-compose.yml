@@ -18,7 +18,7 @@ x-ctfd-env: &ctfd-env
   # off | header | oidc
   AUTH_TOOLS_MODE: ${AUTH_TOOLS_MODE:-oidc}
 
-  # Header auth: only Caddy's fixed address may send X-Auth-ID.
+  # Upstream header: only Caddy's fixed address may send X-Auth-ID.
   AUTH_TOOLS_HEADER_TRUSTED_PROXIES: 172.30.0.10/32
   AUTH_TOOLS_HEADER_SUBJECT_REGEX: "(?:^|,)CN=(?P<id>[^,]+)"
   AUTH_TOOLS_HEADER_EMAIL_HEADER: X-Auth-Email

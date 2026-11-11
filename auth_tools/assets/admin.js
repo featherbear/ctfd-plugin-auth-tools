@@ -2,14 +2,14 @@
  * auth_tools admin enhancements (served by /plugins/auth_tools/admin.js and
  * loaded only on admin pages).
  *
- * Adds an "External" badge next to the name of each user who signs in through
- * the reverse proxy or OpenID Connect. Normal password accounts get no
+ * Adds an "External" badge next to the name of each external account (one that
+ * logs in with upstream header or OpenID Connect). Password-backed accounts get no
  * badge. Hovering the badge shows which method and the external ID.
  *
  * Pages: the admin user list (/admin/users) and a user's admin page
  * (/admin/users/<id>). Data comes from the admin-only identities API.
  *
- * On a linked user's page, the Edit User form also hides the password field
+ * On an external account's page, the Edit User form also hides the password field
  * and the "require password change" checkbox: these accounts can't have a
  * password (the server refuses both). Email and everything else stay editable.
  */
@@ -21,7 +21,7 @@
   if (!onList && !onUser) return;
 
   var LABEL = "External";
-  var METHODS = { header: "header claim", oidc: "OpenID Connect" };
+  var METHODS = { header: "upstream header", oidc: "OpenID Connect" };
 
   // Own colour, distinct from the admin theme's other badges (admin, verified,
   // hidden, banned), with over 4.5:1 text contrast.
@@ -39,7 +39,7 @@
     var span = document.createElement("span");
     span.className = "badge auth-tools-external auth-tools-signin";
     span.textContent = LABEL;
-    var title = "Signs in with " + METHODS[identity.via] + " as " + identity.subject;
+    var title = "Logs in with " + METHODS[identity.via] + " as " + identity.subject;
     if (identity.via === "oidc") title += " (" + identity.provider + ")";
     span.title = title;
     span.setAttribute("aria-label", title);
@@ -88,7 +88,7 @@
     var id = window.USER_ID;
     var heading = document.getElementById("team-id");
     if (!id || !heading) return;
-    if (!byUser[id]) return; // normal password account: nothing to mark
+    if (!byUser[id]) return; // password-backed account: nothing to mark
     lockEditForm();
     var row = heading.nextElementSibling;
     if (!row || row.querySelector(".auth-tools-signin")) return;

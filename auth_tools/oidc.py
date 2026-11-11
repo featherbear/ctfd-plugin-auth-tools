@@ -185,7 +185,7 @@ def _truthy(value):
 @oidc.route("/auth_tools/oidc/login")
 def login():
     if not enabled():
-        return _fail("Single sign-on is not configured.")
+        return _fail("OpenID Connect login is not configured.")
     try:
         doc = discovery()
     except (requests.RequestException, ValueError, OIDCError) as e:
@@ -223,7 +223,7 @@ def login():
 def callback():
     pending = session.pop(SESSION_PENDING, None)
     if not enabled():
-        return _fail("Single sign-on is not configured.")
+        return _fail("OpenID Connect login is not configured.")
     if request.args.get("error"):
         return _fail(
             "Identity provider returned an error: {}".format(
@@ -248,7 +248,7 @@ def callback():
         info = _userinfo(doc, tokens.get("access_token"), claims["sub"])
     except (requests.RequestException, ValueError, OIDCError) as e:
         log("logins", "[{date}] {ip} - auth_tools OIDC error: {e}", e=e)
-        return _fail("Single sign-on failed. Please try again.")
+        return _fail("OpenID Connect login failed. Please try again.")
 
     profile = dict(info)
     profile.update(claims)  # ID token claims win over userinfo

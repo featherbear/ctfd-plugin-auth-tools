@@ -32,7 +32,7 @@ def identities(app):
 
 
 # --------------------------------------------------------------------------
-# Header auth
+# Upstream header
 # --------------------------------------------------------------------------
 
 
@@ -313,7 +313,7 @@ def test_oidc_bad_id_token(app, idp, bad):
 
 def test_oidc_never_links_existing_accounts(app, idp, monkeypatch):
     # Users can change their CTFd email, so a matching email must never hand an
-    # existing password account to an OIDC identity. The removed setting has no effect.
+    # existing password-backed account to an OIDC identity. The removed setting has no effect.
     monkeypatch.setenv("AUTH_TOOLS_OIDC_LINK_BY_VERIFIED_EMAIL", "true")
     with app.app_context():
         from CTFd.models import db
@@ -329,7 +329,7 @@ def test_oidc_never_links_existing_accounts(app, idp, monkeypatch):
         new = Users.query.filter_by(id=new_id).first()
         old = Users.query.filter_by(id=existing).first()
         assert new.name == "hank-2" and new.email is None  # email belongs to the other account
-        assert old.password is not None  # password account untouched
+        assert old.password is not None  # password-backed account untouched
     r, uid = _password_login(app, "hank", "password")
     assert uid == existing  # and it still logs in with its password
 
@@ -344,7 +344,7 @@ def test_login_js_and_admin_page(app, idp):
     with app.test_client() as c:
         js = c.get("/plugins/auth_tools/site.js").get_data(as_text=True)
         assert '"enabled": true' in js and "/auth_tools/oidc/login" in js
-        assert '"toggleText": "Sign in with username / email"' in js
+        assert '"toggleText": "Log in with username / email"' in js
         assert "__AUTH_TOOLS_CONFIG__" not in js
         assert "/plugins/auth_tools/site.js" in c.get("/login").get_data(as_text=True)
     admin = login_as_user(app, name="admin")
@@ -516,7 +516,7 @@ def test_registration_closed_in_header_mode(app, header_env, monkeypatch):
     with app.test_client() as c:
         r = c.get("/register")
         assert r.status_code == 403
-        assert b"Accounts are created automatically when you sign in." in r.data
+        assert b"Accounts are created automatically when you log in." in r.data
     monkeypatch.setenv("AUTH_TOOLS_HEADER_ALLOW_REGISTRATION", "true")
     with app.test_client() as c:
         assert c.get("/register").status_code == 200
@@ -561,7 +561,7 @@ API = "/api/v1/auth_tools/identities"
 
 @pytest.fixture
 def linked(app, header_env, idp):
-    """alice and bob via the header, frank via OIDC, plus an unlinked user."""
+    """alice and bob via upstream header, frank via OIDC, plus a password-backed user."""
     import os
 
     for name in ("alice", "bob"):
@@ -644,7 +644,7 @@ def test_settings_page_descriptions_and_choices(app):
     for key, setting in config.SETTINGS.items():
         assert setting.description, key
         assert 'id="%s-help"' % key in html
-    assert "Reverse-proxy header (e.g. mTLS)" in html
+    assert "Upstream header (e.g. mTLS)" in html
     assert "client_secret_post" in html
     assert "Valid values" in html
 

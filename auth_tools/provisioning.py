@@ -95,7 +95,7 @@ def resolve_user(provider, subject, name=None, email=None, auto_create=True):
         db.session.commit()
     except IntegrityError:
         # Another request created the same identity concurrently (common in
-        # header mode, where a page load fires many requests at once).
+        # upstream header mode, where a page load fires many requests at once).
         db.session.rollback()
         user = lookup(provider, subject)
         if user is None:

@@ -2,7 +2,7 @@
 
 - [How settings work](#how-settings-work)
 - [Choosing a mode](#choosing-a-mode)
-- [Header mode (reverse proxy)](#header-mode-reverse-proxy)
+- [Upstream header mode](#upstream-header-mode)
 - [OIDC mode (OpenID Connect)](#oidc-mode-openid-connect)
 - [Limitations](#limitations)
 
@@ -29,17 +29,17 @@ The plugin supports two login methods, and only one can be active at a time. `mo
 | Value | Effect |
 |---|---|
 | `off` (default) | The plugin does nothing, and CTFd's normal login applies. |
-| `header` | Trusts the identity header from the reverse proxy. OIDC login is unavailable. |
-| `oidc` | Enables OpenID Connect login. The identity header is ignored. |
+| `header` | Upstream header: trusts the identity header from the reverse proxy. OIDC login is unavailable. |
+| `oidc` | OpenID Connect (OIDC) login. The identity header is ignored. |
 
 If you switch away from `header`, sessions that came from the header are logged out on their
 next request. An unrecognized value is treated as `off`.
 
-In both modes, accounts linked to an external identity can't use password login. Accounts
+In both modes, the accounts the plugin creates are external accounts, and they can't use password login. Accounts
 created through CTFd itself, such as the setup admin, keep it. See
-[Linked accounts and passwords](accounts.md#linked-accounts-and-passwords).
+[External accounts and passwords](accounts.md#external-accounts-and-passwords).
 
-## Header mode (reverse proxy)
+## Upstream header mode
 
 A reverse proxy in front of CTFd authenticates the user and passes their identity to CTFd in a
 header. The plugin logs the request in as the matching CTFd user, and creates the account the
@@ -61,7 +61,7 @@ What matters is that the proxy is the only way to reach CTFd, and that it contro
 | `header_trusted_proxies` | `127.0.0.1/32,::1/128` | IPs or CIDRs, comma separated, allowed to send the header. Checked against the TCP peer address, not `X-Forwarded-For`, so it still works if CTFd's `REVERSE_PROXY` is on. |
 | `header_subject_regex` | blank | Extracts the ID from the header value. Uses the named group `id`, else group 1, else the whole match. |
 | `header_auto_create` | `true` | Creates an account the first time an unknown ID arrives. When off, unknown IDs get a 403. |
-| `header_allow_registration` | `false` | Allows CTFd's own `/register` page in header mode. |
+| `header_allow_registration` | `false` | Allows CTFd's own `/register` page in upstream header mode. |
 | `header_hide_logout` | `true` | Hides the Log out link for header sessions, and makes `/logout` do nothing for them. |
 | `header_logout_on_missing` | `true` | Logs out header sessions when a request arrives without the header. Password sessions aren't affected. |
 
@@ -81,7 +81,7 @@ What matters is that the proxy is the only way to reach CTFd, and that it contro
   `header_trusted_proxies` is ignored, and the plugin logs a warning.
 - **Registration is closed.** `/register` returns 403 by default, so the proxy is the only way
   accounts get created. This stops someone registering `alice` before the real alice first
-  signs in. Admin accounts still come from CTFd's setup wizard or the
+  logs in. Admin accounts still come from CTFd's setup wizard or the
   admin panel. To also hide the "Register" link, set CTFd's **Registration Visibility** to
   Private.
 - **No Log out link.** Logging out of a header session would only log the user straight back
@@ -152,7 +152,7 @@ AUTH_TOOLS_HEADER_EMAIL_HEADER=X-Auth-Email                 # optional
 
 #### Example: SSO gateway (Authelia) with Caddy
 
-Caddy's `forward_auth` asks Authelia whether the user is signed in, then copies Authelia's
+Caddy's `forward_auth` asks Authelia whether the user is logged in, then copies Authelia's
 `Remote-User` and `Remote-Email` headers onto the request.
 
 ```caddy
@@ -223,10 +223,10 @@ Register CTFd as a confidential client (it has a client secret) with:
 | `oidc_token_auth_method` | `client_secret_basic` | Valid values: `client_secret_basic`, `client_secret_post`. |
 | `oidc_username_claim` | `preferred_username` | Claim used as the name of new accounts. Falls back to `name`, then `email`, then `sub`. |
 | `oidc_button_text` | `Log in with SSO` | Label of the SSO button. |
-| `oidc_password_toggle_text` | `Sign in with username / email` | Label of the toggle that reveals CTFd's password form. |
+| `oidc_password_toggle_text` | `Log in with username / email` | Label of the toggle that reveals CTFd's password form. |
 | `oidc_divider_text` | `or` | Text in the divider between the SSO button and the toggle. |
 | `oidc_redirect_uri` | derived | Set this if CTFd builds the wrong external URL, for example because `REVERSE_PROXY` isn't set. |
-| `oidc_auto_create` | `true` | Creates an account the first time an unknown user signs in. When off, they're refused. |
+| `oidc_auto_create` | `true` | Creates an account the first time an unknown user logs in. When off, they're refused. |
 | `oidc_allow_http` | `false` | Allows plain-http provider URLs. For local testing only. |
 
 Example:
@@ -241,7 +241,7 @@ AUTH_TOOLS_OIDC_BUTTON_TEXT="Log in with Keycloak"
 
 ### Login page
 
-- **Layout.** The SSO button comes first, then an "or" divider, then a "Sign in with username
+- **Layout.** The SSO button comes first, then an "or" divider, then a "Log in with username
   / email" toggle. The toggle reveals CTFd's own form, so admins can still use a password.
   When the form is open, the SSO button switches to an outline style, so the form's submit
   button is the main action.
@@ -296,4 +296,4 @@ The plugin can't change a theme's own wording. For example, Challenge Express st
 - **Registration visibility.** CTFd's "Registration Visibility" setting doesn't control
   auto-creation. The `*_auto_create` settings do.
 - **Admin sign-in.** There's no way to deliberately link an admin account to a proxy or OIDC
-  identity, so admins sign in with a password.
+  identity, so admins log in with a password.

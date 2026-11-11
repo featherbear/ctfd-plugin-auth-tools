@@ -28,7 +28,7 @@ class AuthIdentity(db.Model):
     )
 
     id = db.Column(db.Integer, primary_key=True)
-    # "header" for the reverse-proxy header, or the OIDC issuer URL.
+    # "header" for upstream header logins, or the OIDC issuer URL.
     provider = db.Column(case_sensitive_string(128), nullable=False)
     subject = db.Column(case_sensitive_string(255), nullable=False)
     user_id = db.Column(

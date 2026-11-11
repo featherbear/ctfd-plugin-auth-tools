@@ -1,5 +1,6 @@
 """
-Reverse-proxy header authentication (e.g. mTLS terminated at nginx/Envoy).
+Upstream header authentication: a trusted reverse proxy (e.g. doing mTLS, or an
+SSO gateway) authenticates the user and passes their identity in a header.
 
 The proxy verifies the client and passes an identity in a header (default
 ``X-Auth-ID``). On each request we map that value to a CTFd user and keep the
@@ -96,7 +97,7 @@ def _drop_header_session():
 
 def header_auth_hook():
     if config.get("mode") != "header" or not is_setup():
-        # A session created while header mode was on must not outlive it.
+        # A session created while upstream header mode was on must not outlive it.
         _drop_header_session()
         return
 
